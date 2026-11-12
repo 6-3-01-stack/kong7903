@@ -9,7 +9,9 @@ const features = [
   '상담',
   '지식 질문',
   '노래 생성',
-];
+] as const;
+
+type TabType = 'chat' | 'code' | 'image';
 
 export default function HomePage() {
   const [mode, setMode] = useState<'login' | 'register'>('login');
@@ -17,6 +19,11 @@ export default function HomePage() {
   const [nickname, setNickname] = useState('');
   const [password, setPassword] = useState('');
   const [message, setMessage] = useState('');
+  const [tab, setTab] = useState<TabType>('chat');
+  const [prompt, setPrompt] = useState('');
+  const [result, setResult] = useState('');
+  const [imageUrl, setImageUrl] = useState('');
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     fetch('/api/auth/me')
@@ -52,6 +59,39 @@ export default function HomePage() {
     setUser(null);
   }
 
+  async function runAi() {
+    if (!prompt.trim()) {
+      setResult('프롬프트를 입력해주세요.');
+      return;
+    }
+
+    setLoading(true);
+    setResult('');
+    setImageUrl('');
+
+    const endpoint = tab === 'chat' ? '/api/chat' : tab === 'code' ? '/api/code' : '/api/image';
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt }),
+    });
+
+    const data = await response.json();
+    setLoading(false);
+
+    if (!response.ok) {
+      setResult(data.error ?? 'AI 요청에 실패했습니다.');
+      return;
+    }
+
+    if (tab === 'image') {
+      setImageUrl(`data:image/png;base64,${data.imageBase64}`);
+      return;
+    }
+
+    setResult(data.answer ?? '응답이 없습니다.');
+  }
+
   if (user) {
     return (
       <main className="page-shell">
@@ -69,8 +109,7 @@ export default function HomePage() {
           <p className="eyebrow">ALL-IN-ONE AI</p>
           <h2>코드, 이미지, 영상, 상담, 지식, 노래를 한 번에</h2>
           <p>
-            로그인 완료 상태입니다. 아래 기능 카드들을 확장해
-            실제 AI 생성 API를 연결할 수 있습니다.
+            OpenAI API 키를 설정하면 실제 AI 기능이 동작합니다.
           </p>
         </section>
 
@@ -79,9 +118,52 @@ export default function HomePage() {
             <div key={feature} className="feature-card">
               <div className="feature-badge">AI</div>
               <h3>{feature}</h3>
-              <p>준비 중 / 연결 가능</p>
+              <p>준비 완료</p>
             </div>
           ))}
+        </section>
+
+        <section className="ai-panel">
+          <div className="ai-tabs">
+            <button
+              className={tab === 'chat' ? 'active' : ''}
+              onClick={() => setTab('chat')}
+            >
+              상담/지식
+            </button>
+            <button
+              className={tab === 'code' ? 'active' : ''}
+              onClick={() => setTab('code')}
+            >
+              코드 생성
+            </button>
+            <button
+              className={tab === 'image' ? 'active' : ''}
+              onClick={() => setTab('image')}
+            >
+              이미지 생성
+            </button>
+          </div>
+
+          <textarea
+            value={prompt}
+            onChange={(e) => setPrompt(e.target.value)}
+            placeholder={
+              tab === 'chat'
+                ? '질문을 입력하세요...'
+                : tab === 'code'
+                  ? '생성할 코드에 대해 설명하세요...'
+                  : '이미지 구성을 설명하세요...'
+            }
+            rows={7}
+          />
+
+          <button className="ai-submit" onClick={runAi} disabled={loading}>
+            {loading ? '생성 중...' : 'AI 실행'}
+          </button>
+
+          {result && <pre className="output-box">{result}</pre>}
+          {imageUrl && <img src={imageUrl} alt="AI generated" className="generated-image" />}
         </section>
       </main>
     );
